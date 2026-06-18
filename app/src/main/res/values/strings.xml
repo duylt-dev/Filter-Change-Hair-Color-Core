@@ -1,0 +1,44 @@
+<resources>
+    <string name="app_name">ChangeHairColor</string>
+
+    <!-- MainActivity -->
+    <string name="title_pick_source">Hair Color Changer</string>
+    <string name="subtitle_pick_source">Chọn ảnh để đổi màu tóc</string>
+    <string name="action_gallery">Chọn ảnh từ thư viện</string>
+    <string name="action_camera">Camera trực tiếp</string>
+    <string name="samples_header">Hoặc thử ảnh mẫu</string>
+
+    <!-- Editor -->
+    <string name="editor_processing">Đang phân vùng tóc…</string>
+    <string name="editor_no_hair">Không phát hiện tóc trong ảnh</string>
+    <string name="tab_color">Màu</string>
+    <string name="tab_brush">Cọ</string>
+    <string name="intensity">Cường độ</string>
+    <string name="brush_size">Kích cỡ cọ</string>
+    <string name="brush_offset">Độ nâng con trỏ</string>
+    <string name="brush_paint">Tô</string>
+    <string name="brush_erase">Xóa</string>
+    <string name="action_undo">Hoàn tác</string>
+    <string name="action_redo">Làm lại</string>
+    <string name="action_reset">Đặt lại</string>
+    <string name="action_compare">Giữ để so sánh</string>
+    <string name="action_custom_color">Màu tùy chỉnh</string>
+    <string name="action_save">Lưu</string>
+    <string name="recent_colors">Màu gần đây</string>
+    <string name="saved_to_gallery">Đã lưu ảnh vào thư viện</string>
+    <string name="save_failed">Lưu ảnh thất bại</string>
+    <string name="action_share">Chia sẻ</string>
+
+    <!-- Camera -->
+    <string name="camera_permission_needed">Cần quyền camera để dùng tính năng này</string>
+    <string name="camera_capture">Chụp</string>
+    <string name="camera_switch">Đổi camera</string>
+
+    <!-- Color picker dialog -->
+    <string name="picker_title">Chọn màu</string>
+    <string name="picker_hue">Tông màu</string>
+    <string name="picker_sat">Độ bão hòa</string>
+    <string name="picker_val">Độ sáng</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Hủy</string>
+</resources>
