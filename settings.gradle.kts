@@ -24,4 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ChangeHairColor"
 include(":app")
- 
+include(":core")

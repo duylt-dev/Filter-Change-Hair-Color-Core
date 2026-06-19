@@ -13,6 +13,11 @@
     <string name="editor_no_hair">Không phát hiện tóc trong ảnh</string>
     <string name="tab_color">Màu</string>
     <string name="tab_brush">Cọ</string>
+    <string name="tab_single">Đơn sắc</string>
+    <string name="tab_gradient">Gradient</string>
+    <string name="grad_top">Gốc</string>
+    <string name="grad_bottom">Ngọn</string>
+    <string name="shine">Độ bóng</string>
     <string name="intensity">Cường độ</string>
     <string name="brush_size">Kích cỡ cọ</string>
     <string name="brush_offset">Độ nâng con trỏ</string>

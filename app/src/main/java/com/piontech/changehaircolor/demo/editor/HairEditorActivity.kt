@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -14,14 +15,15 @@ import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.snackbar.Snackbar
 import com.piontech.changehaircolor.demo.R
-import com.piontech.changehaircolor.demo.data.ColorPalette
+import com.piontech.changehaircolor.core.ColorPalette
+import com.piontech.changehaircolor.core.HairCanvasView
+import com.piontech.changehaircolor.core.HairColorFilter
+import com.piontech.changehaircolor.core.HairColorStyle
 import com.piontech.changehaircolor.demo.data.RecentColorStore
 import com.piontech.changehaircolor.demo.databinding.ActivityHairEditorBinding
-import com.piontech.changehaircolor.demo.segmentation.NativeHairSegmenter
 import com.piontech.changehaircolor.demo.util.ColorPickerDialog
 import com.piontech.changehaircolor.demo.util.ImmersiveActivity
 import com.piontech.changehaircolor.demo.util.MediaUtils
-import com.piontech.changehaircolor.demo.view.HairCanvasView
 import java.util.concurrent.Executors
 
 /**
@@ -41,6 +43,13 @@ class HairEditorActivity : ImmersiveActivity() {
 
     private var workingBitmap: Bitmap? = null
 
+    // Colour selection state.
+    private var gradientMode = false
+    private var singleColor = ColorPalette.defaultColor
+    private var gradTopColor = ColorPalette.colors.first()
+    private var gradBottomColor = ColorPalette.colors[25]
+    private var activeSlot = SLOT_TOP
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityHairEditorBinding.inflate(layoutInflater)
@@ -59,7 +68,7 @@ class HairEditorActivity : ImmersiveActivity() {
 
     private fun setupColorList() {
         paletteAdapter = ColorAdapter(ColorPalette.colors) { onColorPicked(it) }
-        paletteAdapter.selectedColor = ColorPalette.defaultColor
+        paletteAdapter.selectedColor = singleColor
         binding.colorRv.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         binding.colorRv.adapter = paletteAdapter
 
@@ -67,22 +76,59 @@ class HairEditorActivity : ImmersiveActivity() {
         binding.recentRv.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         binding.recentRv.adapter = recentAdapter
 
-        binding.canvas.setColor(ColorPalette.defaultColor)
+        binding.canvas.setStyle(HairColorStyle.Solid(singleColor))
+        binding.swatchTop.setOnClickListener { setActiveSlot(SLOT_TOP) }
+        binding.swatchBottom.setOnClickListener { setActiveSlot(SLOT_BOTTOM) }
+        updateGradientSwatches()
         refreshRecent()
     }
 
+    /** A swatch tap (or custom-colour pick) applies to the current target. */
     private fun onColorPicked(color: Int) {
-        binding.canvas.setColor(color)
+        if (gradientMode) {
+            if (activeSlot == SLOT_TOP) gradTopColor = color else gradBottomColor = color
+            binding.canvas.setStyle(HairColorStyle.Gradient(gradTopColor, gradBottomColor))
+            updateGradientSwatches()
+        } else {
+            singleColor = color
+            binding.canvas.setStyle(HairColorStyle.Solid(color))
+        }
         paletteAdapter.selectedColor = color
         recentAdapter.selectedColor = color
         recentStore.addRecentColor(color)
         refreshRecent()
     }
 
+    private fun setActiveSlot(slot: Int) {
+        activeSlot = slot
+        paletteAdapter.selectedColor = if (slot == SLOT_TOP) gradTopColor else gradBottomColor
+        updateGradientSwatches()
+    }
+
+    private fun updateGradientSwatches() {
+        binding.swatchTop.background = circle(gradTopColor, gradientMode && activeSlot == SLOT_TOP)
+        binding.swatchBottom.background = circle(gradBottomColor, gradientMode && activeSlot == SLOT_BOTTOM)
+        binding.gradientPreview.background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(opaque(gradTopColor), opaque(gradBottomColor)),
+        )
+    }
+
+    private fun circle(color: Int, selected: Boolean): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(opaque(color))
+            setStroke(dp(if (selected) 3 else 1), if (selected) Color.WHITE else 0x55000000)
+        }
+
+    private fun opaque(c: Int) = c or (0xFF shl 24)
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
     private fun refreshRecent() {
         val recents = recentStore.getRecentColors()
         recentAdapter.submit(recents)
-        val visible = if (recents.isEmpty()) View.GONE else View.VISIBLE
+        // Recent row only makes sense in single-colour mode.
+        val visible = if (!gradientMode && recents.isNotEmpty()) View.VISIBLE else View.GONE
         binding.recentLabel.visibility = visible
         binding.recentRv.visibility = visible
     }
@@ -93,9 +139,13 @@ class HairEditorActivity : ImmersiveActivity() {
         val density = resources.displayMetrics.density
         binding.canvas.brushSizePx = binding.sliderBrush.value * density
         binding.canvas.cursorOffsetPx = binding.sliderOffset.value * density
+        binding.canvas.setShine(binding.sliderShine.value.toInt())
 
         binding.sliderIntensity.addOnChangeListener { _, value, _ ->
             binding.canvas.setIntensity(value.toInt())
+        }
+        binding.sliderShine.addOnChangeListener { _, value, _ ->
+            binding.canvas.setShine(value.toInt())
         }
         binding.sliderBrush.addOnChangeListener { _, value, _ ->
             binding.canvas.brushSizePx = value * density
@@ -124,6 +174,24 @@ class HairEditorActivity : ImmersiveActivity() {
         binding.btnRedo.setOnClickListener { binding.canvas.redo() }
         binding.btnReset.setOnClickListener { binding.canvas.reset() }
         binding.btnSave.setOnClickListener { saveResult() }
+
+        // Single / Gradient colour sub-tabs.
+        binding.colorModeToggle.check(binding.btnSingle.id)
+        binding.colorModeToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) return@addOnButtonCheckedListener
+            gradientMode = checkedId == binding.btnGradient.id
+            binding.gradientRow.visibility = if (gradientMode) View.VISIBLE else View.GONE
+            if (gradientMode) {
+                activeSlot = SLOT_TOP
+                binding.canvas.setStyle(HairColorStyle.Gradient(gradTopColor, gradBottomColor))
+                paletteAdapter.selectedColor = gradTopColor
+            } else {
+                binding.canvas.setStyle(HairColorStyle.Solid(singleColor))
+                paletteAdapter.selectedColor = singleColor
+            }
+            updateGradientSwatches()
+            refreshRecent()
+        }
 
         // Color / Brush tabs.
         binding.modeToggle.check(binding.btnModeColor.id)
@@ -181,10 +249,8 @@ class HairEditorActivity : ImmersiveActivity() {
 
             var mask: Bitmap? = null
             try {
-                val segmenter = NativeHairSegmenter.createForImage(this)
-                if (segmenter != null) {
-                    mask = segmenter.segment(bitmap)
-                    segmenter.close()
+                HairColorFilter.forImage(this)?.use { filter ->
+                    mask = filter.segment(bitmap)
                 }
             } catch (t: Throwable) {
                 t.printStackTrace()
@@ -244,6 +310,9 @@ class HairEditorActivity : ImmersiveActivity() {
     }
 
     companion object {
+        private const val SLOT_TOP = 0
+        private const val SLOT_BOTTOM = 1
+
         const val EXTRA_IMAGE_URI = "image_uri"
         const val EXTRA_ASSET = "asset_path"
 

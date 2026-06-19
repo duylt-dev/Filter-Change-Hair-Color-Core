@@ -1,15 +1,15 @@
 package com.piontech.changehaircolor.demo.camera
 
 import android.graphics.Bitmap
-import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Matrix
-import android.graphics.Paint
-import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Size
+import android.view.View
 import android.widget.Toast
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -23,11 +23,12 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.snackbar.Snackbar
 import com.piontech.changehaircolor.demo.R
-import com.piontech.changehaircolor.demo.data.ColorPalette
+import com.piontech.changehaircolor.core.ColorPalette
+import com.piontech.changehaircolor.core.HairColorFilter
+import com.piontech.changehaircolor.core.HairColorStyle
+import com.piontech.changehaircolor.core.HairRecolor
 import com.piontech.changehaircolor.demo.databinding.ActivityCameraBinding
 import com.piontech.changehaircolor.demo.editor.ColorAdapter
-import com.piontech.changehaircolor.demo.recolor.HairRecolor
-import com.piontech.changehaircolor.demo.segmentation.NativeHairSegmenter
 import com.piontech.changehaircolor.demo.util.ImmersiveActivity
 import com.piontech.changehaircolor.demo.util.MediaUtils
 import java.util.concurrent.Executors
@@ -55,12 +56,20 @@ class CameraActivity : ImmersiveActivity() {
     // Separate thread for the heavy capture save (PNG + IO) so segmentation FPS isn't blocked.
     private val captureExecutor = Executors.newSingleThreadExecutor()
 
-    @Volatile private var segmenter: NativeHairSegmenter? = null
-    @Volatile private var currentColor = ColorPalette.defaultColor
+    @Volatile private var filter: HairColorFilter? = null
+    @Volatile private var style: HairColorStyle = HairColorStyle.Solid(ColorPalette.defaultColor)
     @Volatile private var intensity = 200
+    @Volatile private var shine = HairRecolor.DEFAULT_SHINE
     @Volatile private var isFront = true
     @Volatile private var latestColoredMask: Bitmap? = null
     @Volatile private var delegateLabel = "TNN"
+
+    // Colour selection (UI thread).
+    private var gradientMode = false
+    private var singleColor = ColorPalette.defaultColor
+    private var gradTopColor = ColorPalette.colors.first()
+    private var gradBottomColor = ColorPalette.colors[25]
+    private var activeSlot = SLOT_TOP
 
     // FPS measurement (touched only on the analysis thread).
     private var frameCount = 0
@@ -81,30 +90,93 @@ class CameraActivity : ImmersiveActivity() {
 
         // Native engine init is heavy (asset copy + model load); do it off the UI thread.
         analysisExecutor.execute {
-            segmenter = NativeHairSegmenter.createForCamera(this)
+            filter = HairColorFilter.forCamera(this)
         }
 
         startCamera()
     }
 
+    private lateinit var colorAdapter: ColorAdapter
+
     private fun setupControls() {
-        lateinit var adapter: ColorAdapter
-        adapter = ColorAdapter(ColorPalette.colors) { color ->
-            currentColor = color
-            adapter.selectedColor = color
-        }
-        adapter.selectedColor = currentColor
+        colorAdapter = ColorAdapter(ColorPalette.colors) { color -> onColorPicked(color) }
+        colorAdapter.selectedColor = singleColor
         binding.colorRv.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        binding.colorRv.adapter = adapter
+        binding.colorRv.adapter = colorAdapter
 
         intensity = binding.sliderIntensity.value.toInt()
-        binding.sliderIntensity.addOnChangeListener { _, value, _ -> intensity = value.toInt() }
+        binding.overlay.imageAlpha = intensity
+        binding.sliderIntensity.addOnChangeListener { _, value, _ ->
+            intensity = value.toInt()
+            binding.overlay.imageAlpha = intensity
+        }
+        shine = binding.sliderShine.value.toInt()
+        binding.sliderShine.addOnChangeListener { _, value, _ -> shine = value.toInt() }
+
+        binding.swatchTop.setOnClickListener { setActiveSlot(SLOT_TOP) }
+        binding.swatchBottom.setOnClickListener { setActiveSlot(SLOT_BOTTOM) }
+        updateGradientSwatches()
+
+        // Single / Gradient sub-tabs.
+        binding.colorModeToggle.check(binding.btnSingle.id)
+        binding.colorModeToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) return@addOnButtonCheckedListener
+            gradientMode = checkedId == binding.btnGradient.id
+            binding.gradientRow.visibility = if (gradientMode) View.VISIBLE else View.GONE
+            if (gradientMode) {
+                activeSlot = SLOT_TOP
+                style = HairColorStyle.Gradient(gradTopColor, gradBottomColor)
+                colorAdapter.selectedColor = gradTopColor
+            } else {
+                style = HairColorStyle.Solid(singleColor)
+                colorAdapter.selectedColor = singleColor
+            }
+            updateGradientSwatches()
+        }
+
         binding.btnSwitch.setOnClickListener {
             isFront = !isFront
             bindUseCases()
         }
         binding.btnCapture.setOnClickListener { capture() }
     }
+
+    private fun onColorPicked(color: Int) {
+        if (gradientMode) {
+            if (activeSlot == SLOT_TOP) gradTopColor = color else gradBottomColor = color
+            style = HairColorStyle.Gradient(gradTopColor, gradBottomColor)
+            updateGradientSwatches()
+        } else {
+            singleColor = color
+            style = HairColorStyle.Solid(color)
+        }
+        colorAdapter.selectedColor = color
+    }
+
+    private fun setActiveSlot(slot: Int) {
+        activeSlot = slot
+        colorAdapter.selectedColor = if (slot == SLOT_TOP) gradTopColor else gradBottomColor
+        updateGradientSwatches()
+    }
+
+    private fun updateGradientSwatches() {
+        binding.swatchTop.background = circle(gradTopColor, gradientMode && activeSlot == SLOT_TOP)
+        binding.swatchBottom.background = circle(gradBottomColor, gradientMode && activeSlot == SLOT_BOTTOM)
+        binding.gradientPreview.background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(opaque(gradTopColor), opaque(gradBottomColor)),
+        )
+    }
+
+    private fun circle(color: Int, selected: Boolean): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(opaque(color))
+            setStroke(dp(if (selected) 3 else 1), if (selected) Color.WHITE else 0x55FFFFFF)
+        }
+
+    private fun opaque(c: Int) = c or (0xFF shl 24)
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun startCamera() {
         val future = ProcessCameraProvider.getInstance(this)
@@ -156,8 +228,8 @@ class CameraActivity : ImmersiveActivity() {
     }
 
     private fun analyze(proxy: ImageProxy) {
-        val seg = segmenter
-        if (seg == null) {
+        val f = filter
+        if (f == null) {
             proxy.close()
             return
         }
@@ -180,17 +252,21 @@ class CameraActivity : ImmersiveActivity() {
             }
 
             val segStart = SystemClock.elapsedRealtime()
-            val mask = seg.segment(frame)
+            val mask = f.segment(frame)
             lastSegMs = SystemClock.elapsedRealtime() - segStart
 
             // Produce only the recoloured hair layer; the live preview shows through.
+            // Intensity is applied as the overlay ImageView's alpha (see setupControls).
             val colored = if (mask != null) {
-                HairRecolor.colorizeMask(mask, currentColor, intensity)
+                f.colorize(mask, style, shine, frame)
             } else {
                 null
             }
             latestColoredMask = colored
-            ui.post { binding.overlay.setImageBitmap(colored) }
+            ui.post {
+                binding.overlay.setImageBitmap(colored)
+                binding.overlay.imageAlpha = intensity
+            }
 
             updateFps()
         } catch (t: Throwable) {
@@ -224,25 +300,24 @@ class CameraActivity : ImmersiveActivity() {
             Toast.makeText(this, R.string.save_failed, Toast.LENGTH_SHORT).show()
             return
         }
-        val seg = segmenter
-        val color = currentColor
+        val f = filter
+        val s = style
         val strength = intensity
+        val sh = shine
 
         // Re-segment the EXACT captured pixels so the mask aligns perfectly (no stretch).
         analysisExecutor.execute {
             val content = cropPreviewContent(viewBmp)
-            val result = content.copy(Bitmap.Config.ARGB_8888, true)
-            try {
-                val mask = seg?.segment(content)
-                if (mask != null) {
-                    val colored = HairRecolor.colorizeMask(mask, color, strength)
-                    Canvas(result).drawBitmap(
-                        colored, null, Rect(0, 0, result.width, result.height),
-                        Paint(Paint.FILTER_BITMAP_FLAG)
-                    )
+            val result = try {
+                val mask = f?.segment(content)
+                if (f != null && mask != null) {
+                    f.recolor(content, mask, s, strength, sh)
+                } else {
+                    content.copy(Bitmap.Config.ARGB_8888, true)
                 }
             } catch (t: Throwable) {
                 t.printStackTrace()
+                content.copy(Bitmap.Config.ARGB_8888, true)
             }
             // Heavy PNG + IO on a separate thread so realtime segmentation keeps running.
             captureExecutor.execute {
@@ -299,12 +374,15 @@ class CameraActivity : ImmersiveActivity() {
     override fun onDestroy() {
         super.onDestroy()
         cameraProvider?.unbindAll()
-        analysisExecutor.execute { segmenter?.close() }
+        analysisExecutor.execute { filter?.close() }
         analysisExecutor.shutdown()
         captureExecutor.shutdown()
     }
 
     companion object {
+        private const val SLOT_TOP = 0
+        private const val SLOT_BOTTOM = 1
+
         /** Working resolution for segmentation + preview (model input is 256). */
         private const val TARGET_MAX_DIM = 384
     }

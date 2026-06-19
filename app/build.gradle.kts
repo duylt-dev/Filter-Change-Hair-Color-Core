@@ -44,6 +44,9 @@ android {
 }
 
 dependencies {
+    // Hair color change filter (native TNN engine + recolor) lives in :core
+    implementation(project(":core"))
+
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)

@@ -20,7 +20,7 @@
         android:layout_weight="1"
         android:background="#202022">
 
-        <com.piontech.changehaircolor.demo.view.HairCanvasView
+        <com.piontech.changehaircolor.core.HairCanvasView
             android:id="@+id/canvas"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
@@ -132,6 +132,34 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- Single / Gradient sub-tabs -->
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/color_mode_toggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                app:selectionRequired="true"
+                app:singleSelection="true">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_single"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/tab_single"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_gradient"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/tab_gradient"
+                    android:textSize="12sp" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
             <TextView
                 android:id="@+id/recent_label"
                 android:layout_width="wrap_content"
@@ -146,6 +174,47 @@
                 android:layout_height="wrap_content"
                 android:visibility="gone" />
 
+            <!-- Gradient endpoints (top/bottom) + preview; visible in gradient mode -->
+            <LinearLayout
+                android:id="@+id/gradient_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/grad_top"
+                    android:textSize="11sp" />
+
+                <View
+                    android:id="@+id/swatch_top"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginHorizontal="6dp" />
+
+                <View
+                    android:id="@+id/gradient_preview"
+                    android:layout_width="0dp"
+                    android:layout_height="22dp"
+                    android:layout_weight="1" />
+
+                <View
+                    android:id="@+id/swatch_bottom"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginHorizontal="6dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/grad_bottom"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <!-- Shared swatch list: sets the solid colour, or the active gradient endpoint -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/color_rv"
                 android:layout_width="match_parent"
@@ -159,7 +228,7 @@
                 android:orientation="horizontal">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="64dp"
                     android:layout_height="wrap_content"
                     android:text="@string/intensity"
                     android:textSize="12sp" />
@@ -180,6 +249,29 @@
                     android:layout_height="wrap_content"
                     android:text="@string/action_custom_color"
                     android:textSize="11sp" />
+            </LinearLayout>
+
+            <!-- Shine -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="64dp"
+                    android:layout_height="wrap_content"
+                    android:text="@string/shine"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/slider_shine"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:valueFrom="0"
+                    android:valueTo="255"
+                    android:value="140" />
             </LinearLayout>
         </LinearLayout>
 

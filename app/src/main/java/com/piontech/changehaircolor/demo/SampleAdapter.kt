@@ -20,7 +20,7 @@ class SampleAdapter(
     private val io = Executors.newFixedThreadPool(2)
     private val ui = Handler(Looper.getMainLooper())
 
-    inner class VH(view: View) : RecyclerView.ViewHolder(view) {
+    class VH(view: View) : RecyclerView.ViewHolder(view) {
         val image: ImageView = view.findViewById(R.id.sample_image)
     }
 

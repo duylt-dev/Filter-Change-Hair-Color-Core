@@ -7,7 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.piontech.changehaircolor.demo.R
-import com.piontech.changehaircolor.demo.recolor.HairRecolor
+import com.piontech.changehaircolor.core.HairRecolor
 
 /**
  * Horizontal swatch list, equivalent to the original `ColorShadeAdapter` /
